@@ -1,0 +1,1 @@
+npm install @nestjs/mongoose mongoose nodemailer @nestjs/jwt @nestjs/config class-validator class-transformer
