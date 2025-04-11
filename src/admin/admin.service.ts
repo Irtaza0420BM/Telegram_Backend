@@ -17,6 +17,9 @@ export class AdminService {
   async findByUsername(username: string): Promise<Admin | null> {
     return this.adminModel.findOne({ username }).exec();
   }
+  async findById(id: string): Promise<Admin | null> {
+    return this.adminModel.findById(id).exec();
+  }
 
   async create(email: string, username: string, password: string): Promise<Admin> {
     const existingAdmin = await this.adminModel.findOne({

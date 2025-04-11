@@ -6,6 +6,7 @@ import { AdminService } from './admin.service';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   getProfile(@Request() req) {
@@ -16,4 +17,7 @@ export class AdminController {
       twoFASecurity: req.user.twoFASecurity,
     };
   }
+
+
+  
 }
