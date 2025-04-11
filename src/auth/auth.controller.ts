@@ -6,8 +6,20 @@ import { OtpDto } from './dto/otp.dto';
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+  /***
+   * This is the first starting point endpoint.
+   * I have made this to check if telegram id exists or not.
+   * This endpoint is used to check if the user exists by telegramID. 
+   * If the user exists, it returns a message indicating that the user already exists.
+   * 
+   */
+  @Get('signin/:telegramId')
+  async getdetailsByTelegramId(@Param('telegramId') telegramId: string) {
+    return await this.authService.getdetailsByTelegramId(telegramId);
+  }
 
-  @Post('check-email')
+//Create-user endpoint
+  @Post('signup')
   async checkEmail(@Body() emailDto: EmailDto) {
     return this.authService.sendOtp(emailDto);
   }
@@ -23,9 +35,5 @@ export class AuthController {
     return { telegramId };
   }
 
-  @Get('email/:telegramId')
-  async getEmailByTelegramId(@Param('telegramId') telegramId: string) {
-    const email = await this.authService.getEmailByTelegramId(telegramId);
-    return { email };
-  }
+// Need to implement a generic all purppose endpoint to get update user details.
 }

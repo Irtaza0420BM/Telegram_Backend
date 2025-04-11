@@ -20,6 +20,9 @@ export class User {
   @Prop({ required: true, unique: true })
   email: string;
 
+  @Prop()
+  OTP: string;
+  
   @Prop({ unique: true, sparse: true })
   telegramId: string;
 

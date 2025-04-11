@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { User, UserDocument } from './entites/user.entity';
+import { Otp, OtpDocument } from './entites/otp.entity'; 
 import { EmailDto } from './dto/email.dto';
 import { OtpDto } from './dto/otp.dto';
 import * as nodemailer from 'nodemailer';
@@ -10,10 +11,11 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
-  private otpStore: Map<string, { otp: string, expiry: Date }> = new Map();
+  // private otpStore: Map<string, { otp: string, expiry: Date }> = new Map();
   private transporter;
 
   constructor(
+    @InjectModel(Otp.name) private otpModel: Model<OtpDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private configService: ConfigService,
@@ -40,30 +42,6 @@ export class AuthService {
     return user;
   }
 
-  async sendOtp(emailDto: EmailDto): Promise<{ message: string }> {
-    const { email } = emailDto;
-    
-    const userExists = await this.checkUserExistsByEmail(email);
-    
-    if (userExists) {
-      const user = await this.getUserByEmail(email);
-      return {
-        message: 'User already exists',
-      };
-    }
-    
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    const expiry = new Date();
-    expiry.setMinutes(expiry.getMinutes() + 10);
-    this.otpStore.set(email, { otp, expiry });
-    
-    await this.sendOtpEmail(email, otp);
-    
-    return {
-      message: 'OTP sent to email',
-    };
-  }
 
   private async sendOtpEmail(email: string, otp: string): Promise<void> {
     const mailOptions = {
@@ -89,24 +67,59 @@ export class AuthService {
     }
   }
 
+
+  async sendOtp(emailDto: EmailDto): Promise<{ message: string }> {
+    const { email } = emailDto;
+  
+    const userExists = await this.checkUserExistsByEmail(email);
+    if (userExists) {
+      return {
+        message: 'Email already exists',
+      };
+    }
+  
+    
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  
+    const expiry = new Date();
+    expiry.setMinutes(expiry.getMinutes() + 10); 
+  
+    await this.otpModel.create({
+      email,
+      otp,
+      expiry,
+    });
+  
+    await this.sendOtpEmail(email, otp);
+  
+    return {
+      message: 'OTP sent to email',
+    };
+  }
+  
   async verifyOtp(otpDto: OtpDto): Promise<{ token: string }> {
     const { email, otp, telegramId } = otpDto;
-    
-    const storedOtp = this.otpStore.get(email);
-    
-    if (!storedOtp || storedOtp.otp !== otp) {
+  
+    const existingOtp = await this.otpModel.findOne({ email }).exec();
+    if (!existingOtp) {
+      throw new UnauthorizedException('OTP not found');
+    }
+  
+        if (existingOtp.otp !== otp) {
       throw new UnauthorizedException('Invalid OTP');
     }
+  
     
-    if (new Date() > storedOtp.expiry) {
-      this.otpStore.delete(email);
+    if (new Date() > existingOtp.expiry) {
+      await this.otpModel.deleteOne({ _id: existingOtp._id });
       throw new UnauthorizedException('OTP expired');
     }
-    
-    const userExists = await this.checkUserExistsByEmail(email);
-    
+  
+    await this.otpModel.deleteOne({ _id: existingOtp._id });
+  
     let user: UserDocument;
-    
+    const userExists = await this.checkUserExistsByEmail(email);
+  
     if (userExists) {
       user = await this.getUserByEmail(email);
       if (telegramId) {
@@ -120,30 +133,29 @@ export class AuthService {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      
       await user.save();
     }
-    
-    this.otpStore.delete(email);
-    
+  
     const payload = { sub: user._id, email: user.email, telegramId: user.telegramId };
     const token = this.jwtService.sign(payload);
-    
-    return {
-      token,
-    };
+  
+    return { token };
   }
+  
 
   async getTelegramIdByEmail(email: string): Promise<string> {
     const user = await this.getUserByEmail(email);
     return user.telegramId;
   }
 
-  async getEmailByTelegramId(telegramId: string): Promise<string> {
+  async getdetailsByTelegramId(telegramId: string): Promise<UserDocument> {
     const user = await this.userModel.findOne({ telegramId }).exec();
     if (!user) {
       throw new NotFoundException('User with this Telegram ID not found');
     }
-    return user.email;
+    return user;
   }
 }
+
+
+// Signup - Signin - Verify OTP

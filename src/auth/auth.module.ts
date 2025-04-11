@@ -5,12 +5,13 @@ import { AuthService } from './auth.service';
 import { DatabaseModule } from '../database/module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from './entites/user.entity';
+import { Otp, OtpSchema } from './entites/otp.entity';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     DatabaseModule,
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }, { name: Otp.name, schema: OtpSchema }]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
