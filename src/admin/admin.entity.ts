@@ -17,6 +17,16 @@ export class Admin extends Document {
 
   @Prop()
   twoFASecret?: string;
+  
+  @Prop({ default: false })
+  twoFAVerified: boolean;
+  
+  @Prop()
+  refreshToken?: string;
+  
+  @Prop()
+  lastLogin?: Date;
+
 }
 
 export const AdminSchema = SchemaFactory.createForClass(Admin);

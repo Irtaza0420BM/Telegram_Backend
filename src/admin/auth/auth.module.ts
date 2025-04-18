@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AdminModule } from '../admin.module';
 import { LocalStrategy } from './local.strategy';
 import { JwtStrategy } from './jwt.strategy';
+import { AuthHelperService } from './auth-helper.service'; 
 
 @Module({
   imports: [
@@ -22,7 +23,12 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  providers: [
+    AuthService,
+    LocalStrategy,
+    JwtStrategy,
+    AuthHelperService, 
+  ],
   exports: [AuthService],
 })
-export class AuthModule {}
+export class AdminAuthModule {}

@@ -11,7 +11,6 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
-  // private otpStore: Map<string, { otp: string, expiry: Date }> = new Map();
   private transporter;
 
   constructor(
@@ -158,4 +157,3 @@ export class AuthService {
 }
 
 
-// Signup - Signin - Verify OTP
