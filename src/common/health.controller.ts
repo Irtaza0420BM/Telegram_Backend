@@ -1,14 +1,15 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody , ApiProperty} from '@nestjs/swagger';
 import { HealthService } from './health.service';
-
+import { IsOptional} from 'class-validator';
 class HealthCheckDto {
   @ApiProperty({
     description: 'Optional message to include with the health check',
     required: false,
     example: 'Testing health endpoint'
   })
-  message?: string;
+  @IsOptional()
+  message: string;
 }
 
 @ApiTags('Health Check')
