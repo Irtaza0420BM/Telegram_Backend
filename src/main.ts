@@ -3,6 +3,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as express from 'express';
+import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -27,6 +29,9 @@ async function bootstrap() {
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api', app, document);
+    
+    // Serve Swagger UI assets explicitly
+    app.use('/api', express.static(join(__dirname, '..', 'node_modules/swagger-ui-dist')));
   }
   
   const configService = app.get(ConfigService);
@@ -37,4 +42,5 @@ async function bootstrap() {
   if (isSwaggerEnabled) {
     console.log(`Swagger documentation: http://localhost:${port}/api`);
   }
-}bootstrap();
+}
+bootstrap();
