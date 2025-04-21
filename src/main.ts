@@ -8,15 +8,12 @@ import * as express from 'express';
 import { join } from 'path';
 
 async function bootstrap() {
-  // Create app with logger configuration
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true, // Buffers logs until logger is ready
   });
 
-  // Configure logger BEFORE any other operations
   app.useLogger(app.get(Logger)); // Now properly configured
   
-  // Rest of your configuration
   app.enableCors();
   app.useGlobalPipes(
     new ValidationPipe({
