@@ -5,6 +5,7 @@ import { AdminModule } from './admin/admin.module';
 import { DatabaseModule } from './database/module';
 import { AdminAuthModule } from './admin/auth/auth.module';
 import config from './config';
+import { HealthController } from './common/health.controller';
 
 @Module({
   imports: [
@@ -15,7 +16,9 @@ import config from './config';
     DatabaseModule,
     AuthModule,
     AdminModule,
-    AdminAuthModule
+    AdminAuthModule,
+    HealthController
+
 
   ],
 })
