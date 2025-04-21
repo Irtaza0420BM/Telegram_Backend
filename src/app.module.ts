@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/module';
 import { AdminAuthModule } from './admin/auth/auth.module';
 import config from './config';
 import { HealthModule } from './common/health.module';
+import { LoggerModule } from 'nestjs-pino';
 
 @Module({
   imports: [
@@ -13,12 +14,20 @@ import { HealthModule } from './common/health.module';
       isGlobal: true,
       load: [config],
     }),
+    LoggerModule.forRoot({
+      pinoHttp: {
+        transport: process.env.NODE_ENV !== 'production'
+          ? { target: 'pino-pretty' }
+          : undefined,
+        level: process.env.NODE_ENV !== 'production' ? 'debug' : 'info',
+      },
+    }),
     DatabaseModule,
     AuthModule,
     AdminModule,
     AdminAuthModule,
     HealthModule
-    
+
 
 
   ],
