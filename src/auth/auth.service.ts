@@ -6,29 +6,36 @@ import { User, UserDocument } from './entites/user.entity';
 import { Otp, OtpDocument } from './entites/otp.entity'; 
 import { EmailDto } from './dto/email.dto';
 import { OtpDto } from './dto/otp.dto';
-import * as nodemailer from 'nodemailer';
+import { EmailService } from '../common/email.service'; 
 import { ConfigService } from '@nestjs/config';
 import { UpdateUserDto } from './dto/update_user.dto';
 
 @Injectable()
 export class AuthService {
-  private transporter;
-
   constructor(
     @InjectModel(Otp.name) private otpModel: Model<OtpDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: this.configService.get<string>('EMAIL_USER'),
-        pass: this.configService.get<string>('EMAIL_PASSWORD'),
-      },
+    private emailService: EmailService,  // Inject the EmailService
+  ) {}
+
+
+  private async sendOtpEmail(email: string, otp: string): Promise<void> {
+    await this.emailService.sendEmail({
+      to: email,
+      subject: 'Your OTP Code',
+      text: `Your OTP code is: ${otp}. This code will expire in 10 minutes.`,
+      html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Your OTP Code</h2>
+        <p style="font-size: 16px;">Your OTP code is:</p>
+        <div style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
+          ${otp}
+        </div>
+        <p style="font-size: 14px; color: #777;">This code will expire in 10 minutes.</p>
+      </div>`,
     });
   }
-
   async checkUserExistsByEmail(email: string): Promise<boolean> {
     const user = await this.userModel.findOne({ email }).exec();
     return !!user;
@@ -42,30 +49,6 @@ export class AuthService {
     return user;
   }
 
-
-  private async sendOtpEmail(email: string, otp: string): Promise<void> {
-    const mailOptions = {
-      from: this.configService.get<string>('EMAIL_USER'),
-      to: email,
-      subject: 'Your OTP Code',
-      text: `Your OTP code is: ${otp}. This code will expire in 10 minutes.`,
-      html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Your OTP Code</h2>
-        <p style="font-size: 16px;">Your OTP code is:</p>
-        <div style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
-          ${otp}
-        </div>
-        <p style="font-size: 14px; color: #777;">This code will expire in 10 minutes.</p>
-      </div>`,
-    };
-
-    try {
-      await this.transporter.sendMail(mailOptions);
-    } catch (error) {
-      console.error('Failed to send OTP email:', error);
-      throw new Error('Failed to send OTP email');
-    }
-  }
 
 
   async sendOtp(emailDto: EmailDto): Promise<{ message: string }> {

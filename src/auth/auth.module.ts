@@ -7,6 +7,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from './entites/user.entity';
 import { Otp, OtpSchema } from './entites/otp.entity';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { EmailService } from 'src/common/email.service';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService, EmailService],
   exports: [AuthService],
 })
 export class AuthModule {}
