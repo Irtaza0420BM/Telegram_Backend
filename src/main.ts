@@ -17,20 +17,25 @@ async function bootstrap() {
     }),
   );
   
-  const config = new DocumentBuilder()
-    .setTitle('Auth API')
-    .setDescription('Authentication API with email OTP and Telegram ID mapping')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  const isSwaggerEnabled = process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true';
+  
+  if (isSwaggerEnabled) {
+    const config = new DocumentBuilder()
+      .setTitle('Auth API')
+      .setDescription('Authentication API with email OTP and Telegram ID mapping')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api', app, document);
+  }
   
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 3000;
   
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger documentation: http://localhost:${port}/api`);
-}
-bootstrap();
+  if (isSwaggerEnabled) {
+    console.log(`Swagger documentation: http://localhost:${port}/api`);
+  }
+}bootstrap();
