@@ -17,8 +17,7 @@ async function bootstrap() {
     }),
   );
   
-  const isSwaggerEnabled = process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true';
-  
+  const isSwaggerEnabled = process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true';  
   if (isSwaggerEnabled) {
     const config = new DocumentBuilder()
       .setTitle('Auth API')
