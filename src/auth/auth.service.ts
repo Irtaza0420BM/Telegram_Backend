@@ -8,6 +8,7 @@ import { EmailDto } from './dto/email.dto';
 import { OtpDto } from './dto/otp.dto';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
+import { UpdateUserDto } from './dto/update_user.dto';
 
 @Injectable()
 export class AuthService {
@@ -97,7 +98,7 @@ export class AuthService {
   }
   
   async verifyOtp(otpDto: OtpDto): Promise<{ token: string }> {
-    const { email, otp, telegramId } = otpDto;
+    const { email, otp, telegramId, username } = otpDto;
   
     const existingOtp = await this.otpModel.findOne({ email }).exec();
     if (!existingOtp) {
@@ -129,6 +130,7 @@ export class AuthService {
       user = new this.userModel({
         email,
         telegramId,
+        username,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -153,6 +155,41 @@ export class AuthService {
       throw new NotFoundException('User with this Telegram ID not found');
     }
     return user;
+  }
+
+
+  async updateUser(userId: string, updateUserDto: UpdateUserDto): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    if (updateUserDto.email && updateUserDto.email !== user.email) {
+      const emailExists = await this.userModel.findOne({ 
+        email: updateUserDto.email,
+        _id: { $ne: userId } 
+      }).exec();
+      
+      if (emailExists) {
+        throw new ConflictException('Email already in use');
+      }
+    }
+    
+    if (updateUserDto.telegramId && updateUserDto.telegramId !== user.telegramId) {
+      const telegramIdExists = await this.userModel.findOne({ 
+        telegramId: updateUserDto.telegramId,
+        _id: { $ne: userId } 
+      }).exec();
+      
+      if (telegramIdExists) {
+        throw new ConflictException('Telegram ID already in use');
+      }
+    }
+  
+    Object.assign(user, updateUserDto);
+    user.updatedAt = new Date();
+    
+    return await user.save();
   }
 }
 

@@ -1,7 +1,11 @@
-import { Controller, Post, Body, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, UseGuards, Patch } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { EmailDto } from './dto/email.dto';
 import { OtpDto } from './dto/otp.dto';
+import { JwtAuthGuard } from 'src/admin/auth/jwt-auth.guard';
+import { UpdateUserDto } from './dto/update_user.dto';
+
+
 
 @Controller('auth')
 export class AuthController {
@@ -18,7 +22,6 @@ export class AuthController {
     return await this.authService.getdetailsByTelegramId(telegramId);
   }
 
-//Create-user endpoint
   @Post('signup')
   async checkEmail(@Body() emailDto: EmailDto) {
     return this.authService.sendOtp(emailDto);
@@ -35,5 +38,12 @@ export class AuthController {
     return { telegramId };
   }
 
-// Need to implement a generic all purppose endpoint to get update user details.
+  @Patch('users/:userId')
+  @UseGuards(JwtAuthGuard)
+  async updateUser(
+    @Param('userId') userId: string,
+    @Body() updateUserDto: UpdateUserDto
+  ) {
+    return this.authService.updateUser(userId, updateUserDto);
+  }
 }

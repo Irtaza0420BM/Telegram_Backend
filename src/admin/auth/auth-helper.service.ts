@@ -110,7 +110,7 @@ export class AuthHelperService {
     }
     
     const secret = authenticator.generateSecret();
-    const otpAuthUrl = authenticator.keyuri(admin.email, 'Admin Dashboard', secret);
+    const otpAuthUrl = authenticator.keyuri(admin.email, 'AdminDashboard', secret);
     
     const qrCodeDataURL = await qrcode.toDataURL(otpAuthUrl);
     

@@ -13,4 +13,8 @@ export class OtpDto {
   @IsString()
   @IsOptional()
   telegramId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  username: string;
 }
