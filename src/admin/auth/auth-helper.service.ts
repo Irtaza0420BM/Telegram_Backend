@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
@@ -6,11 +6,13 @@ import { authenticator } from 'otplib';
 import * as qrcode from 'qrcode';
 import { Admin } from '../admin.entity';
 import { CreateUserDto } from './dto/create-user.dto';
+import { User } from 'src/auth/entites/user.entity';
 
 @Injectable()
 export class AuthHelperService {
   constructor(
     @InjectModel(Admin.name) private adminModel: Model<Admin>,
+    @InjectModel(User.name) private userModel: Model <User>,
   ) {}
 
   async findByEmail(email: string): Promise<Admin | null> {
@@ -183,5 +185,10 @@ export class AuthHelperService {
     await this.adminModel.findByIdAndUpdate(adminId, {
       refreshToken: null,
     }).exec();
+  }
+
+
+  async findUserById(id: string): Promise<User | null> {
+    return this.userModel.findById(id).exec();
   }
 }

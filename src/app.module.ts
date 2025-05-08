@@ -28,8 +28,6 @@ import { LoggerModule } from 'nestjs-pino';
     AdminAuthModule,
     HealthModule
 
-
-
   ],
 })
 export class AppModule {}

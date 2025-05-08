@@ -1,0 +1,136 @@
+#include "stdlib.fc";
+
+;; Storage structure:
+;; owner_address: MsgAddressInt - address of the contract owner
+;; level_price: Coins - price per level (same for all levels)
+;; users: map(MsgAddressInt -> int) - mapping of user addresses to their completed levels
+
+(slice, int, cell) load_data() inline {
+    var ds = get_data().begin_parse();
+    return (
+        ds~load_msg_addr(),  ;; owner_address
+        ds~load_coins(),     ;; level_price
+        ds~load_dict()       ;; users map
+    );
+}
+
+() save_data(slice owner_address, int level_price, cell users) impure inline {
+    set_data(begin_cell()
+        .store_slice(owner_address)
+        .store_coins(level_price)
+        .store_dict(users)
+        .end_cell());
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    
+    if (flags & 1) { ;; ignore all bounced messages
+        return ();
+    }
+    
+    slice sender_address = cs~load_msg_addr();
+    
+    (slice owner_address, int level_price, cell users) = load_data();
+    
+    ;; Only accept messages with a valid op code
+    if (in_msg_body.slice_bits() < 32) {
+        return ();
+    }
+    
+    int op = in_msg_body~load_uint(32);
+    
+    ;; op = 1: Initialize or update the contract (owner only)
+    if (op == 1) {
+        throw_unless(401, equal_slices(sender_address, owner_address));
+        int new_level_price = in_msg_body~load_coins();
+        save_data(owner_address, new_level_price, users);
+        return ();
+    }
+    
+    ;; op = 2: Pay for a level
+    if (op == 2) {
+        throw_unless(402, msg_value >= level_price); ;; Ensure enough TON is sent
+        
+        ;; Retrieve the user's current level
+        (int user_level, int found) = users.udict_get?(267, sender_address);
+        if (~ found) {
+            user_level = 0; ;; If user doesn't exist, start at level 0
+        }
+        
+        ;; Increment user's level
+        user_level += 1;
+        
+        ;; Update the user's level in the dictionary
+        users~udict_set(267, sender_address, begin_cell().store_uint(user_level, 32).end_cell().begin_parse());
+        
+        ;; Forward the payment to the owner
+        var msg = begin_cell()
+            .store_uint(0x10, 6) ;; non-bounce
+            .store_slice(owner_address)
+            .store_coins(msg_value)
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_uint(op, 32)
+            .store_slice(sender_address)
+            .store_uint(user_level, 32)
+            .end_cell();
+        send_raw_message(msg, 1); ;; pay transfer fees separately
+        
+        ;; Save the updated state
+        save_data(owner_address, level_price, users);
+        return ();
+    }
+    
+    ;; op = 3: Query user level
+    if (op == 3) {
+        slice user_to_check = in_msg_body~load_msg_addr();
+        (int user_level, int found) = users.udict_get?(267, user_to_check);
+        
+        if (~ found) {
+            user_level = 0;
+        }
+        
+        ;; Send response to the sender
+        var msg = begin_cell()
+            .store_uint(0x10, 6) ;; non-bounce
+            .store_slice(sender_address)
+            .store_coins(0, 1) ;; minimal value for response
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_uint(0xf3, 32) ;; response op code
+            .store_slice(user_to_check)
+            .store_uint(user_level, 32)
+            .end_cell();
+        send_raw_message(msg, 64); ;; carry remaining value
+        return ();
+    }
+    
+    ;; op = 4: Withdraw funds (owner only)
+    if (op == 4) {
+        throw_unless(401, equal_slices(sender_address, owner_address));
+        int amount = in_msg_body~load_coins();
+        amount = min(amount, my_balance - 1000000); ;; Leave some TON for gas
+        
+        var msg = begin_cell()
+            .store_uint(0x10, 6) ;; non-bounce
+            .store_slice(owner_address)
+            .store_coins(amount)
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .end_cell();
+        send_raw_message(msg, 1); ;; pay transfer fees separately
+        return ();
+    }
+}
+
+;; Get contract info for external calls
+(int, slice, int) get_contract_info() method_id {
+    (slice owner_address, int level_price, cell users) = load_data();
+    return (level_price, owner_address, users.dict_empty?() ? 0 : 1);
+}
+
+;; Get user level
+int get_user_level(slice user_address) method_id {
+    (_, _, cell users) = load_data();
+    (int user_level, int found) = users.udict_get?(267, user_address);
+    return found ? user_level : 0;
+}

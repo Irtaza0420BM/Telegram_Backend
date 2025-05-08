@@ -1,0 +1,111 @@
+// // src/admin/quiz/controllers/quiz.controller.ts
+// import { 
+//     Body, 
+//     Controller,     Get, 
+//     Post, 
+//     Patch, 
+//     Param, 
+//     Delete, 
+//     Query,
+//     ParseIntPipe
+//   } from '@nestjs/common';
+//   import { QuizService } from '../services/quiz.service';
+//   import { CreateCategoryDto } from '../dto/create-category.dto';
+//   import { UpdateCategoryDto } from '../dto/update-category.dto';
+//   import { CreateQuestionDto, CreateBulkQuestionsDto } from '../dto/create-question.dto';
+//   import { UpdateQuestionDto, UpdateBulkQuestionsDto } from '../dto/update-question.dto';
+//   import { CreateDifficultyLevelDto } from '../dto/create-difficulty-level.dto';
+//   import { UpdateDifficultyLevelDto } from '../dto/update-difficulty-level.dto';
+//   import { Category } from '../entities/category.entity';
+//   import { Question } from '../entities/question.entity';
+//   import { DifficultyLevel } from '../entities/difficulty-level.entity';
+  
+//   @Controller('admin/quiz')
+//   export class QuizController {
+//     constructor(private readonly quizService: QuizService) {}
+  
+//     //To Create new Category 
+//     @Post('categories')
+//     async createCategory(@Body() createCategoryDto: CreateCategoryDto): Promise<Category> {
+//       return this.quizService.createCategory(createCategoryDto);
+//     }
+  
+//     @Get('categories')
+//     async getAllCategories(): Promise<Category[]> {
+//       return this.quizService.findAllCategories();
+//     }
+
+//     //To  edit payment price particularly.
+//     @Patch('categories/:id')
+//     async updateCategory(
+//       @Param('id', ParseIntPipe) id: number,
+//       @Body() updateCategoryDto: UpdateCategoryDto,
+//     ): Promise<Category> {
+//       return this.quizService.updateCategory(id, updateCategoryDto);
+//     }
+  
+//     @Delete('categories/:id')
+//     async deleteCategory(@Param('id', ParseIntPipe) id: number): Promise<void> {
+//       return this.quizService.deleteCategory(id);
+//     }
+  
+//    //We don't need a difficulty endpoint tbh, We can add it in question endpoint.
+  
+//     // Question endpoints main ingredient should be category, difficulty which if not exist will be made. 
+//     //
+//     @Post('questions')
+//     async createQuestion(@Body() createQuestionDto: CreateQuestionDto): Promise<Question> {
+//       return this.quizService.createQuestion(createQuestionDto);
+//     }
+  
+//     @Post('questions/bulk')
+//     async createBulkQuestions(@Body() createBulkQuestionsDto: CreateBulkQuestionsDto): Promise<Question[]> {
+//       return this.quizService.createBulkQuestions(createBulkQuestionsDto);
+//     }
+  
+//     @Get('questions')
+//     async getAllQuestions(
+//       @Query('categoryId') categoryId?: number,
+//       @Query('difficultyId') difficultyId?: number,
+//       @Query('language') languageCode?: string,
+//     ): Promise<Question[]> {
+//       return this.quizService.findAllQuestions(categoryId, difficultyId, languageCode);
+//     }
+  
+//     @Get('questions/:id')
+//     async getQuestion(@Param('id', ParseIntPipe) id: number): Promise<Question> {
+//       return this.quizService.findQuestionById(id);
+//     }
+  
+//     @Patch('questions/:id')
+//     async updateQuestion(
+//       @Param('id', ParseIntPipe) id: number,
+//       @Body() updateQuestionDto: UpdateQuestionDto,
+//     ): Promise<Question> {
+//       return this.quizService.updateQuestion(id, updateQuestionDto);
+//     }
+  
+//     @Patch('questions/bulk')
+//     async updateBulkQuestions(@Body() updateBulkQuestionsDto: UpdateBulkQuestionsDto): Promise<Question[]> {
+//       return this.quizService.updateBulkQuestions(updateBulkQuestionsDto);
+//     }
+  
+//     @Delete('questions/:id')
+//     async deleteQuestion(@Param('id', ParseIntPipe) id: number): Promise<void> {
+//       return this.quizService.deleteQuestion(id);
+//     }
+  
+//     // PRICING ENDPOINTS
+//     @Post('categories/:categoryId/pricing')
+//     async setCategoryPricing(
+//       @Param('categoryId', ParseIntPipe) categoryId: number,
+//       @Body() pricingData: { difficultyLevelId: number; price: number }
+//     ) {
+//       return this.quizService.setCategoryPricing(categoryId, pricingData);
+//     }
+  
+//     @Get('categories/:categoryId/pricing')
+//     async getCategoryPricing(@Param('categoryId', ParseIntPipe) categoryId: number) {
+//       return this.quizService.getCategoryPricing(categoryId);
+//     }
+//   }

@@ -57,6 +57,8 @@ export class AuthController {
     return this.authService.sendOtp(emailDto);
   }
 
+
+  
   @ApiOperation({ 
     summary: 'Verify OTP',
     description: 'Verifies the OTP sent to user email and completes the registration/authentication process'
@@ -73,6 +75,9 @@ export class AuthController {
   async verifyOtp(@Body() otpDto: OtpDto) {
     return this.authService.verifyOtp(otpDto);
   }
+
+
+
 
   @ApiOperation({ 
     summary: 'Get Telegram ID by email',
@@ -107,6 +112,10 @@ export class AuthController {
     return { telegramId };
   }
 
+
+
+
+  
   @ApiOperation({ 
     summary: 'Update user profile',
     description: 'Updates user information such as email, username, language preference, etc.'
