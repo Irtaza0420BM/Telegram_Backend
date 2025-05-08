@@ -7,10 +7,11 @@ import { AuthController } from './auth.controller';
 import { AdminModule } from '../admin.module';
 import { LocalStrategy } from './local.strategy';
 import { JwtStrategy } from './jwt.strategy';
-import { AuthHelperService } from './auth-helper.service'; 
+import { AuthHelperService } from './auth-helper.service';
 
 @Module({
   imports: [
+    // Include AdminModule which exports MongooseModule with both Admin and User models
     AdminModule,
     PassportModule,
     JwtModule.registerAsync({
