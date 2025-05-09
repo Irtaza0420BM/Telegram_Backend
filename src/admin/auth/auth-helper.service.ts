@@ -6,13 +6,14 @@ import { authenticator } from 'otplib';
 import * as qrcode from 'qrcode';
 import { Admin } from '../admin.entity';
 import { CreateUserDto } from './dto/create-user.dto';
-import { User } from 'src/auth/entites/user.entity';
+import { User, UserDocument } from 'src/auth/entites/user.entity';
 
 @Injectable()
+
 export class AuthHelperService {
   constructor(
-    @InjectModel(Admin.name) private adminModel: Model<Admin>,
-    @InjectModel(User.name) private userModel: Model <User>,
+    @InjectModel(Admin.name) private readonly adminModel: Model<Admin>,
+    @InjectModel(User.name) private readonly userModel: Model <User>,
   ) {}
 
   async findByEmail(email: string): Promise<Admin | null> {

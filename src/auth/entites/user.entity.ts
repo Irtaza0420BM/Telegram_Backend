@@ -1,7 +1,8 @@
+// src/auth/entities/user.entity.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
-import { UserPayment } from 'src/admin/quiz/entities/user-payment.entity';
-import { OneToMany } from 'typeorm';
+// Remove TypeORM import
+// import { OneToMany } from 'typeorm';
 export type UserDocument = User & Document;
 
 interface QuizHistory {
@@ -51,11 +52,11 @@ export class User {
   @Prop({ default: Date.now })
   lastActive: Date;
 
-  @Prop ({default : Date.now})
+  @Prop({default: Date.now})
   updatedAt: Date;
 
-  @OneToMany(() => UserPayment, payment => payment.user)
-  payments: UserPayment[];
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'UserPayment' }] })
+  payments: MongooseSchema.Types.ObjectId[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

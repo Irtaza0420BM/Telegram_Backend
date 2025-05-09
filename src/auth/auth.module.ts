@@ -24,6 +24,8 @@ import { EmailService } from 'src/common/email.service';
   ],
   controllers: [AuthController],
   providers: [AuthService, EmailService],
-  exports: [AuthService],
+  exports: [AuthService, 
+    MongooseModule  
+  ],
 })
 export class AuthModule {}
