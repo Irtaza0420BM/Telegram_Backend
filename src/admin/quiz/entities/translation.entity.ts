@@ -1,24 +1,20 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { Question } from './question.entity';
-
-@Entity('translations')
-export class Translation {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ length: 5 })
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import mongoose from 'mongoose';
+@Schema({ timestamps: true })
+export class Translation  {
+  @Prop({ required: true, length: 5 })
   languageCode: string;
 
-  @Column({ type: 'text' })
+  @Prop({ required: true })
   question_text: string;
 
-  @Column({ type: 'simple-array' })
+  @Prop({ type: [String], required: true })
   options: string[];
 
-  @ManyToOne(() => Question, question => question.translations)
-  @JoinColumn({ name: 'question_id' })
-  question: Question;
-
-  @Column()
-  questionId: number;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true })
+  question: mongoose.Types.ObjectId;
 }
+
+export const TranslationSchema = SchemaFactory.createForClass(Translation);
+
+TranslationSchema.index({ question: 1, languageCode: 1 }, { unique: true });

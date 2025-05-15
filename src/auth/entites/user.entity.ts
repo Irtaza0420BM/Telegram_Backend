@@ -52,6 +52,9 @@ export class User {
   @Prop({ default: Date.now })
   lastActive: Date;
 
+ @Prop({default: Date.now})
+  createdAt: Date;
+  
   @Prop({default: Date.now})
   updatedAt: Date;
 

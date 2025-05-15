@@ -7,6 +7,7 @@ import { AdminAuthModule } from './admin/auth/auth.module';
 import config from './config';
 import { HealthModule } from './common/health.module';
 import { LoggerModule } from 'nestjs-pino';
+import { QuizModule } from './admin/quiz/quiz.module';
 
 @Module({
   imports: [
@@ -26,7 +27,8 @@ import { LoggerModule } from 'nestjs-pino';
     AuthModule,
     AdminModule,
     AdminAuthModule,
-    HealthModule
+    HealthModule,
+    QuizModule
 
   ],
 })

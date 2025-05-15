@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
@@ -17,9 +17,8 @@ export class AuthService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private emailService: EmailService,  // Inject the EmailService
+    private emailService: EmailService,
   ) {}
-
 
   private async sendOtpEmail(email: string, otp: string): Promise<void> {
     await this.emailService.sendEmail({
@@ -36,6 +35,7 @@ export class AuthService {
       </div>`,
     });
   }
+
   async checkUserExistsByEmail(email: string): Promise<boolean> {
     const user = await this.userModel.findOne({ email }).exec();
     return !!user;
@@ -49,29 +49,30 @@ export class AuthService {
     return user;
   }
 
-
-
-  async sendOtp(emailDto: EmailDto): Promise<{ message: string }> {
+  async sendOtp(emailDto: EmailDto): Promise<{ message: string}> {
     const { email } = emailDto;
   
     const userExists = await this.checkUserExistsByEmail(email);
     if (userExists) {
-      return {
-        message: 'Email already exists',
-      };
+      throw new ConflictException('Email already exists');
     }
   
-    
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
   
+
     const expiry = new Date();
     expiry.setMinutes(expiry.getMinutes() + 10); 
+
   
-    await this.otpModel.create({
-      email,
-      otp,
-      expiry,
-    });
+    await this.otpModel.findOneAndUpdate(
+      { email },
+      {
+        email,
+        otp,
+        expiry,
+      },
+      { upsert: true, new: true }
+    );
   
     await this.sendOtpEmail(email, otp);
   
@@ -79,23 +80,25 @@ export class AuthService {
       message: 'OTP sent to email',
     };
   }
+
   
-  async verifyOtp(otpDto: OtpDto): Promise<{ token: string }> {
+  
+  async verifyOtp(otpDto: OtpDto): Promise<{ token: string; user: any }> {
     const { email, otp, telegramId, username } = otpDto;
   
     const existingOtp = await this.otpModel.findOne({ email }).exec();
     if (!existingOtp) {
       throw new UnauthorizedException('OTP not found');
     }
-  
-        if (existingOtp.otp !== otp) {
-      throw new UnauthorizedException('Invalid OTP');
-    }
-  
-    
+
     if (new Date() > existingOtp.expiry) {
       await this.otpModel.deleteOne({ _id: existingOtp._id });
       throw new UnauthorizedException('OTP expired');
+    }
+  
+    if (existingOtp.otp !== otp) {
+      
+      throw new UnauthorizedException('Invalid OTP');
     }
   
     await this.otpModel.deleteOne({ _id: existingOtp._id });
@@ -122,26 +125,47 @@ export class AuthService {
   
     const payload = { sub: user._id, email: user.email, telegramId: user.telegramId };
     const token = this.jwtService.sign(payload);
+
+    const userResponse = {
+      id: user._id,
+      email: user.email,
+      telegramId: user.telegramId,
+      username: user.username,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
   
-    return { token };
+    return { token, user: userResponse };
   }
   
-
   async getTelegramIdByEmail(email: string): Promise<string> {
     const user = await this.getUserByEmail(email);
     return user.telegramId;
   }
 
-  async getdetailsByTelegramId(telegramId: string): Promise<UserDocument> {
+  async getDetailsByTelegramId(telegramId: string): Promise<{ token: string; user: any }> {
     const user = await this.userModel.findOne({ telegramId }).exec();
     if (!user) {
       throw new NotFoundException('User with this Telegram ID not found');
     }
-    return user;
+    
+    const payload = { sub: user._id, email: user.email, telegramId: user.telegramId };
+    const token = this.jwtService.sign(payload);
+
+    const userResponse = {
+      id: user._id,
+      email: user.email,
+      telegramId: user.telegramId,
+      username: user.username,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+    
+    return { token, user: userResponse };
   }
 
 
-  async updateUser(userId: string, updateUserDto: UpdateUserDto): Promise<UserDocument> {
+  async updateUser(userId: string, updateUserDto: UpdateUserDto): Promise<any> {
     const user = await this.userModel.findById(userId).exec();
     if (!user) {
       throw new NotFoundException('User not found');
@@ -158,22 +182,39 @@ export class AuthService {
       }
     }
     
-    if (updateUserDto.telegramId && updateUserDto.telegramId !== user.telegramId) {
-      const telegramIdExists = await this.userModel.findOne({ 
-        telegramId: updateUserDto.telegramId,
-        _id: { $ne: userId } 
-      }).exec();
-      
-      if (telegramIdExists) {
-        throw new ConflictException('Telegram ID already in use');
-      }
+    if (updateUserDto.telegramId) {
+      throw new BadRequestException('Telegram ID cannot be updated through this endpoint');
     }
   
-    Object.assign(user, updateUserDto);
-    user.updatedAt = new Date();
+    if (updateUserDto.username) user.username = updateUserDto.username;
+    if (updateUserDto.email) user.email = updateUserDto.email;
     
-    return await user.save();
+    user.updatedAt = new Date();
+    await user.save();
+    
+    return {
+      id: user._id,
+      email: user.email,
+      telegramId: user.telegramId,
+      username: user.username,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
   }
+
+  async refreshToken(userId: string): Promise<{ token: string }> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    const payload = { sub: user._id, email: user.email, telegramId: user.telegramId };
+    const token = this.jwtService.sign(payload);
+    
+    return { token };
+  }
+
+ 
+
+ 
 }
-
-

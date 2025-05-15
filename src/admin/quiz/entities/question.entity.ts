@@ -1,36 +1,42 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
-import { Category } from './category.entity';
-import { Tier } from './tier.entity';
-import { Translation } from './translation.entity';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import mongoose from 'mongoose';
 
-@Entity('questions')
+@Schema({ timestamps: true })
 export class Question {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'text' })
+  @Prop({ required: true })
   question_text: string;
 
-  @Column({ type: 'simple-array' })
+  @Prop({ type: [String], required: true })
   options: string[];
 
-  @Column({ type: 'int' })
+  @Prop({ required: true })
   correct_option_index: number;
 
-  @ManyToOne(() => Category, category => category.questions)
-  @JoinColumn({ name: 'category_id' })
-  category: Category;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true })
+  category: mongoose.Types.ObjectId;
 
-  @Column()
-  categoryId: number;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Tier', required: true })
+  tier: mongoose.Types.ObjectId;
 
-  @ManyToOne(() => Tier, tier => tier.questions)
-  @JoinColumn({ name: 'tier_id' })
-  tier: Tier;
+  @Prop({ type: Number, required: true })
+  rank: number;
 
-  @Column()
-  tierId: number;
-
-  @OneToMany(() => Translation, translation => translation.question)
-  translations: Translation[];
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Translation' }] })
+  translations: mongoose.Types.ObjectId[];
 }
+
+export const QuestionSchema = SchemaFactory.createForClass(Question);
+
+QuestionSchema.pre('save', async function(next) {
+  if (this.isNew) {
+    const Question = mongoose.model('Question');
+    
+    const highestRankedQuestion = await Question.findOne({
+      category: this.category,
+      tier: this.tier
+    }).sort({ rank: -1 }).limit(1);
+    
+    this.rank = highestRankedQuestion ? highestRankedQuestion.rank + 1 : 1;
+  }
+  next();
+});

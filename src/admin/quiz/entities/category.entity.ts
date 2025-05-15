@@ -1,21 +1,70 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, Index } from 'typeorm';
-import { Question } from './question.entity';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import mongoose from 'mongoose';
 
-@Entity('categories')
+@Schema({ 
+  timestamps: true,
+  autoIndex: true 
+})
 export class Category {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ unique: true })
-  @Index({ unique: true })
+  @Prop({ required: true, unique: true, index: true })
   name: string;
 
-  @Column({ nullable: true })
-  description: string;
+  @Prop({ 
+    default: null,
+    required: false 
+  })
+  description?: string;
 
-  @Column({ default: 1 })
+  @Prop({ 
+    type: Number, 
+    required: true, 
+    unique: true, // Add unique constraint
+    index: true // Add indexing
+  })
   orderRank: number;
 
-  @OneToMany(() => Question, question => question.category)
-  questions: Question[];
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }] })
+  questions: mongoose.Types.ObjectId[];
 }
+
+export const CategorySchema = SchemaFactory.createForClass(Category);
+
+CategorySchema.index({ orderRank: 1 }, { unique: true });
+
+CategorySchema.pre('deleteOne', { document: true, query: false }, async function(next) {
+  try {
+    const Question = mongoose.model('Question');
+    await Question.deleteMany({ category: this._id });
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+CategorySchema.pre('save', async function(next) {
+  try {
+    const existingCategory = await (this.constructor as any).findOne({ 
+      orderRank: this.orderRank,
+      _id: { $ne: this._id }
+    });
+
+    if (existingCategory) {
+      const error: any = new Error('Order rank must be unique');
+      error.code = 11000; 
+      return next(error);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+CategorySchema.post('save', function(error, doc, next) {
+  if (error.code === 11000) {
+    // Customize error for orderRank uniqueness
+    if (error.message.includes('orderRank')) {
+      error.message = 'A category with this order rank already exists';
+    }
+  }
+  next(error);
+});

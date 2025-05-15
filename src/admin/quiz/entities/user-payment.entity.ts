@@ -1,38 +1,28 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
-import { User } from 'src/auth/entites/user.entity';
-import { Tier } from './tier.entity';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import mongoose  from 'mongoose';
 
-@Entity('user_payments')
+@Schema({ timestamps: true })
 export class UserPayment {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @CreateDateColumn()
+  @Prop({ default: Date.now })
   paymentDate: Date;
 
-  @Column('decimal', { precision: 10, scale: 2 })
-  amount: number;
+  @Prop({ required: true, type: mongoose.Schema.Types.Decimal128 })
+  amount: mongoose.Types.Decimal128;
 
-  @Column({ default: 'usd' })
+  @Prop({ default: 'usd' })
   currency: string;
 
-  @ManyToOne(() => User, user => user.payments)
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
+  user: mongoose.Types.ObjectId;
 
-  @Column()
-  userId: number;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Tier', required: true })
+  tier: mongoose.Types.ObjectId;
 
-  @ManyToOne(() => Tier, tier => tier.payments)
-  @JoinColumn({ name: 'tier_id' })
-  tier: Tier;
-
-  @Column()
-  tierId: number;
-
-  @Column({ nullable: true })
+  @Prop({ default: null })
   expiryDate: Date;
 
-  @Column({ default: true })
+  @Prop({ default: true })
   isActive: boolean;
 }
+
+export const UserPaymentSchema = SchemaFactory.createForClass(UserPayment);

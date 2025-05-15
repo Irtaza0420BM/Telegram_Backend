@@ -1,27 +1,25 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { Question } from './question.entity';
-import { UserPayment } from './user-payment.entity';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import mongoose  from 'mongoose';
 
-@Entity('tiers')
-export class Tier {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
+@Schema({ timestamps: true })
+export class Tier  {
+  @Prop({ required: true })
   name: string;
 
-  @Column({ nullable: true })
+  @Prop({ default: null })
   description: string;
 
-  @Column({ default: false })
+  @Prop({ default: false })
   isPaid: boolean;
 
-  @Column({ default: 1 })
+  @Prop({ default: 1 })
   orderRank: number;
 
-  @OneToMany(() => Question, question => question.tier)
-  questions: Question[];
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }] })
+  questions: mongoose.Types.ObjectId[];
 
-  @OneToMany(() => UserPayment, payment => payment.tier)
-  payments: UserPayment[];
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'UserPayment' }] })
+  payments: mongoose.Types.ObjectId[];
 }
+
+export const TierSchema = SchemaFactory.createForClass(Tier);

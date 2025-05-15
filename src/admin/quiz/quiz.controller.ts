@@ -1,18 +1,21 @@
-import { Body, Controller, Post, UseGuards, Get, Param, Patch, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { QuizService } from './quiz.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { CreateQuestionsDto } from './dto/create-questions.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { UpdateTierDto } from './dto/update-tier.dto';
+import { CreateQuestionsDto } from './dto/create-questions.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { UpdateTranslationDto } from './dto/update-translation.dto';
+import { Types } from 'mongoose';
+import { TranslationImportDto } from './dto/translation-import.dto';
+
+
 
 @Controller('quiz')
 export class QuizController {
   constructor(private readonly quizService: QuizService) {}
 
-  @Post('category')
+  @Post('categories')
   @UseGuards(JwtAuthGuard)
   async createCategory(@Body() createCategoryDto: CreateCategoryDto) {
     return this.quizService.createCategory(createCategoryDto);
@@ -24,19 +27,19 @@ export class QuizController {
     return this.quizService.getCategories();
   }
 
-  @Get('category/:rank')
+  @Get('categories/:orderRank')
   @UseGuards(JwtAuthGuard)
-  async getCategoryByRank(@Param('rank', ParseIntPipe) rank: number) {
-    return this.quizService.getCategoryByRank(rank);
+  async getCategoryByRank(@Param('orderRank', ParseIntPipe) orderRank: number) {
+    return this.quizService.getCategoryByRank(orderRank);
   }
 
-  @Patch('category/:rank')
+  @Patch('categories/:orderRank')
   @UseGuards(JwtAuthGuard)
   async updateCategory(
-    @Param('rank', ParseIntPipe) rank: number,
+    @Param('orderRank', ParseIntPipe) orderRank: number,
     @Body() updateCategoryDto: UpdateCategoryDto
   ) {
-    return this.quizService.updateCategory(rank, updateCategoryDto);
+    return this.quizService.updateCategory(orderRank, updateCategoryDto);
   }
 
   @Get('tiers')
@@ -45,19 +48,10 @@ export class QuizController {
     return this.quizService.getTiers();
   }
 
-  @Get('tier/:rank')
+  @Get('tiers/:orderRank')
   @UseGuards(JwtAuthGuard)
-  async getTierByRank(@Param('rank', ParseIntPipe) rank: number) {
-    return this.quizService.getTierByRank(rank);
-  }
-
-  @Patch('tier/:rank')
-  @UseGuards(JwtAuthGuard)
-  async updateTier(
-    @Param('rank', ParseIntPipe) rank: number,
-    @Body() updateTierDto: UpdateTierDto
-  ) {
-    return this.quizService.updateTier(rank, updateTierDto);
+  async getTierByRank(@Param('orderRank', ParseIntPipe) orderRank: number) {
+    return this.quizService.getTierByRank(orderRank);
   }
 
   @Post('questions')
@@ -78,7 +72,7 @@ export class QuizController {
   @Patch('question/:id')
   @UseGuards(JwtAuthGuard)
   async updateQuestion(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: Types.ObjectId,
     @Body() updateQuestionDto: UpdateQuestionDto
   ) {
     return this.quizService.updateQuestion(id, updateQuestionDto);
@@ -86,16 +80,22 @@ export class QuizController {
 
   @Get('question/:id/translations')
   @UseGuards(JwtAuthGuard)
-  async getTranslationsByQuestionId(@Param('id', ParseIntPipe) id: number) {
+  async getTranslationsByQuestionId(@Param('id') id: Types.ObjectId) {
     return this.quizService.getTranslationsByQuestionId(id);
   }
 
   @Patch('translation/:id')
   @UseGuards(JwtAuthGuard)
   async updateTranslation(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: Types.ObjectId,
     @Body() updateTranslationDto: UpdateTranslationDto
   ) {
     return this.quizService.updateTranslation(id, updateTranslationDto);
+  }
+
+  @Post('translations/import')
+  @UseGuards(JwtAuthGuard)
+  async importTranslations(@Body() translationImportDto: TranslationImportDto) {
+    return this.quizService.importTranslations(translationImportDto);
   }
 }

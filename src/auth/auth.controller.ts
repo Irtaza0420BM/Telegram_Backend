@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, UseGuards, Patch } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, UseGuards, Patch, Req, HttpStatus, HttpCode, UnauthorizedException, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { EmailDto } from './dto/email.dto';
 import { OtpDto } from './dto/otp.dto';
@@ -30,8 +30,35 @@ export class AuthController {
     description: 'User not found' 
   })
   @Get('signin/:telegramId')
-  async getdetailsByTelegramId(@Param('telegramId') telegramId: string) {
-    return await this.authService.getdetailsByTelegramId(telegramId);
+  async getDetailsByTelegramId(@Param('telegramId') telegramId: string) {
+    return await this.authService.getDetailsByTelegramId(telegramId);
+  }
+
+  @ApiOperation({ 
+    summary: 'Get user profile',
+    description: 'Returns the profile information for the authenticated user'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'User profile retrieved successfully' 
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized' 
+  })
+
+
+ @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('profile')
+  getProfile(@Request() req) {
+    return {
+      id: req.user._id,
+      username: req.user.username,
+      email: req.user.email,
+      twoFAEnabled: req.user.twoFASecurity,
+      lastLogin: req.user.lastLogin
+    };
   }
 
   @ApiOperation({ 
@@ -46,18 +73,24 @@ export class AuthController {
     status: 400, 
     description: 'Invalid email address' 
   })
-  @ApiParam({
-    name: "email",
-    required: true,
-    description: "actual email of the user to send OTP",
-    type: "string"
-  })
   @Post('signup')
-  async checkEmail(@Body() emailDto: EmailDto) {
+  async signUp(@Body() emailDto: EmailDto) {
     return this.authService.sendOtp(emailDto);
   }
 
-
+  @ApiOperation({ 
+    summary: 'Resume signup process',
+    description: 'Resends OTP to continue an interrupted signup process'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'OTP resent successfully' 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Email not found in pending signup process' 
+  })
+ 
   
   @ApiOperation({ 
     summary: 'Verify OTP',
@@ -75,9 +108,6 @@ export class AuthController {
   async verifyOtp(@Body() otpDto: OtpDto) {
     return this.authService.verifyOtp(otpDto);
   }
-
-
-
 
   @ApiOperation({ 
     summary: 'Get Telegram ID by email',
@@ -111,20 +141,10 @@ export class AuthController {
     const telegramId = await this.authService.getTelegramIdByEmail(email);
     return { telegramId };
   }
-
-
-
-
   
   @ApiOperation({ 
     summary: 'Update user profile',
     description: 'Updates user information such as email, username, language preference, etc.'
-  })
-  @ApiParam({
-    name: 'userId',
-    required: true,
-    description: 'ID of the user to update',
-    type: String
   })
   @ApiResponse({ 
     status: 200, 
@@ -138,13 +158,36 @@ export class AuthController {
     status: 404, 
     description: 'User not found' 
   })
+
+
   @ApiBearerAuth()
-  @Patch('users/:userId')
+  @Patch('profile')
   @UseGuards(JwtAuthGuard)
   async updateUser(
-    @Param('userId') userId: string,
+    @Req() req,
     @Body() updateUserDto: UpdateUserDto
   ) {
-    return this.authService.updateUser(userId, updateUserDto);
+    return this.authService.updateUser(req.user.sub, updateUserDto);
   }
+
+  @ApiOperation({ 
+    summary: 'Refresh authentication token',
+    description: 'Generates a new JWT token for the authenticated user'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Token refreshed successfully' 
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized' 
+  })
+  @ApiBearerAuth()
+  @Post('refresh-token')
+  @UseGuards(JwtAuthGuard)
+  async refreshToken(@Req() req) {
+    return this.authService.refreshToken(req.user.sub);
+  }
+
+ 
 }
