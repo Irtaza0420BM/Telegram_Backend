@@ -1,70 +1,45 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose from 'mongoose';
+import { Document, Types } from 'mongoose';
 
-@Schema({ 
-  timestamps: true,
-  autoIndex: true 
-})
-export class Category {
-  @Prop({ required: true, unique: true, index: true })
+@Schema({ timestamps: true })
+export class Category extends Document {
+  @Prop({ required: true, unique: true, trim: true })
   name: string;
 
-  @Prop({ 
-    default: null,
-    required: false 
-  })
-  description?: string;
+  @Prop() description?: string;
 
-  @Prop({ 
-    type: Number, 
-    required: true, 
-    unique: true, // Add unique constraint
-    index: true // Add indexing
-  })
+  @Prop({ required: true, unique: true })
   orderRank: number;
 
-  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }] })
-  questions: mongoose.Types.ObjectId[];
+  questions: Types.ObjectId[];
 }
 
 export const CategorySchema = SchemaFactory.createForClass(Category);
 
 CategorySchema.index({ orderRank: 1 }, { unique: true });
+CategorySchema.index({ name: 1 }, { unique: true });
 
-CategorySchema.pre('deleteOne', { document: true, query: false }, async function(next) {
+CategorySchema.virtual('questions', {
+  ref: 'Question',
+  localField: '_id',
+  foreignField: 'category',
+});
+
+CategorySchema.pre('deleteOne', { document: true, query: false }, async function (next) {
   try {
-    const Question = mongoose.model('Question');
+    const Question = this.model('Question');
     await Question.deleteMany({ category: this._id });
     next();
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 });
 
-CategorySchema.pre('save', async function(next) {
-  try {
-    const existingCategory = await (this.constructor as any).findOne({ 
-      orderRank: this.orderRank,
-      _id: { $ne: this._id }
-    });
-
-    if (existingCategory) {
-      const error: any = new Error('Order rank must be unique');
-      error.code = 11000; 
-      return next(error);
-    }
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-CategorySchema.post('save', function(error, doc, next) {
-  if (error.code === 11000) {
-    // Customize error for orderRank uniqueness
-    if (error.message.includes('orderRank')) {
-      error.message = 'A category with this order rank already exists';
-    }
-  }
-  next(error);
+CategorySchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform(_, ret) {
+    ret.id = ret._id;
+    delete ret._id;
+  },
 });

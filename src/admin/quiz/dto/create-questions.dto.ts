@@ -1,81 +1,100 @@
-import { Type } from 'class-transformer';
-import { 
-  IsNotEmpty, 
-  IsNumber, 
-  IsString, 
-  IsArray, 
-  ValidateNested, 
-  IsOptional,
-  Min,
+// src/quiz/dto/create-questions.dto.ts
+import {
+  IsArray,
   ArrayMinSize,
-  IsBoolean
+  ArrayMaxSize,
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+  ValidateIf,
+  registerDecorator,
+  ValidationArguments,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
+/* ---------- Custom validator: correct_index must be inside options length ---------- */
+function IsIndexWithinOptions(property: string, validationOptions?: any) {
+  return function (object: unknown, propertyName: string) {
+    registerDecorator({
+      name: 'isIndexWithinOptions',
+      target: object.constructor,
+      propertyName,
+      constraints: [property],
+      options: validationOptions,
+      validator: {
+        validate(value: number, args: ValidationArguments) {
+          const opts: string[] = (args.object as any)[property];
+          return Array.isArray(opts) && value >= 0 && value < opts.length;
+        },
+        defaultMessage(args: ValidationArguments) {
+          const opts: string[] = (args.object as any)[property];
+          return `${args.property} must be between 0 and ${opts.length - 1}`;
+        },
+      },
+    });
+  };
+}
+
+/* ---------- Translation ---------- */
 export class TranslationItemDto {
-  @IsNotEmpty()
-  @IsString()
-  language: string;
+  @IsString() @IsNotEmpty()
+  languageCode: string;
 
-  @IsNotEmpty()
-  @IsString()
+  @IsString() @IsNotEmpty()
   question: string;
 
-  @IsArray()
-  @IsString({ each: true })
-  @ArrayMinSize(2)
+  @IsArray() @ArrayMinSize(4) @ArrayMaxSize(4) @IsString({ each: true })
   options: string[];
 }
 
+/* ---------- Question ---------- */
 export class QuestionItemDto {
-  @IsNotEmpty()
-  @IsString()
+  @IsString() @IsNotEmpty()
   question: string;
 
-  @IsArray()
-  @IsString({ each: true })
-  @ArrayMinSize(2)
+  @IsInt() @Min(1)
+  rank: number;                       
+
+  @IsArray() @ArrayMinSize(4) @ArrayMaxSize(4) @IsString({ each: true })
   options: string[];
 
-  @IsNumber()
-  @Min(0)
+  @IsInt() @Min(0)
+  @IsIndexWithinOptions('options', { message: 'correct_index out of bounds' })
   correct_index: number;
 
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => TranslationItemDto)
+  @IsArray() @ValidateNested({ each: true }) @Type(() => TranslationItemDto)
   translations?: TranslationItemDto[];
 }
 
-export class tierDto{
-  @IsNotEmpty()
-  @IsString()
+/* ---------- Tier ---------- */
+export class TierDto {
+  @IsInt() @Min(1)
+  orderRank: number;                       
+
+  @IsString() @IsNotEmpty()
   name: string;
 
-  @IsOptional()
-  @IsString()
+  @IsString() @IsOptional()
   description?: string;
 
-  @IsOptional()
-  @IsNumber()
-  id?: number;
-
   @IsBoolean()
-  isPaid?: boolean;
-
-
+  isPaid: boolean;
 }
 
+/* ---------- CreateQuestionsDto ---------- */
 export class CreateQuestionsDto {
-  @IsNumber()
-  category: number;
+  @IsInt() @Min(1)
+  categoryOrderRank: number;               // clearer name
 
-  @Type(()=>tierDto)
-  tier: tierDto;
+  @ValidateNested() @Type(() => TierDto)
+  tier: TierDto;
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => QuestionItemDto)
-  @ArrayMinSize(1)
+  @IsArray() @ArrayMinSize(1)
+  @ValidateNested({ each: true }) @Type(() => QuestionItemDto)
   questions: QuestionItemDto[];
 }

@@ -36,9 +36,9 @@ export class AuthService {
     });
   }
 
-  async checkUserExistsByEmail(email: string): Promise<boolean> {
+  async checkUserExistsByEmail(email: string): Promise<UserDocument> {
     const user = await this.userModel.findOne({ email }).exec();
-    return !!user;
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<UserDocument> {
@@ -84,59 +84,53 @@ export class AuthService {
   
   
   async verifyOtp(otpDto: OtpDto): Promise<{ token: string; user: any }> {
-    const { email, otp, telegramId, username } = otpDto;
-  
-    const existingOtp = await this.otpModel.findOne({ email }).exec();
-    if (!existingOtp) {
-      throw new UnauthorizedException('OTP not found');
-    }
+  const { email, otp, telegramId, username } = otpDto;
 
-    if (new Date() > existingOtp.expiry) {
-      await this.otpModel.deleteOne({ _id: existingOtp._id });
-      throw new UnauthorizedException('OTP expired');
-    }
-  
-    if (existingOtp.otp !== otp) {
-      
-      throw new UnauthorizedException('Invalid OTP');
-    }
-  
-    await this.otpModel.deleteOne({ _id: existingOtp._id });
-  
-    let user: UserDocument;
-    const userExists = await this.checkUserExistsByEmail(email);
-  
-    if (userExists) {
-      user = await this.getUserByEmail(email);
-      if (telegramId) {
-        user.telegramId = telegramId;
-        await user.save();
-      }
-    } else {
-      user = new this.userModel({
-        email,
-        telegramId,
-        username,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-      await user.save();
-    }
-  
-    const payload = { sub: user._id, email: user.email, telegramId: user.telegramId };
-    const token = this.jwtService.sign(payload);
-
-    const userResponse = {
-      id: user._id,
-      email: user.email,
-      telegramId: user.telegramId,
-      username: user.username,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt
-    };
-  
-    return { token, user: userResponse };
+  const existingOtp = await this.otpModel.findOne({ email }).exec();
+  if (!existingOtp) {
+    throw new UnauthorizedException('OTP not found');
   }
+
+  if (new Date() > existingOtp.expiry) {
+    await this.otpModel.deleteOne({ _id: existingOtp._id });
+    throw new UnauthorizedException('OTP expired');
+  }
+
+  if (existingOtp.otp !== otp) {
+    throw new UnauthorizedException('Invalid OTP');
+  }
+
+  await this.otpModel.deleteOne({ _id: existingOtp._id });
+
+    const existingTelegramUser = await this.userModel.findOne({ telegramId }).exec();
+    if (existingTelegramUser && existingTelegramUser.email !== email) {
+      throw new UnauthorizedException("Telegram ID already exists for another user");
+    }
+  
+
+  let user = await this.userModel.findOne({ email }).exec();
+  const refresh_token = this.jwtService.sign({ email, telegramId }, { expiresIn: '7d' });
+
+  if (user && user.telegramId) {   
+    user.refreshToken = refresh_token
+    user.save();
+  } else {
+      user = new this.userModel({
+      email,
+      telegramId,
+      username,
+      refreshToken: refresh_token,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await user.save();
+  }
+
+  const payload = { sub: user._id, email: user.email, telegramId: user.telegramId };
+  const token = this.jwtService.sign(payload);
+
+  return { token, user };
+}
   
   async getTelegramIdByEmail(email: string): Promise<string> {
     const user = await this.getUserByEmail(email);
@@ -151,12 +145,16 @@ export class AuthService {
     
     const payload = { sub: user._id, email: user.email, telegramId: user.telegramId };
     const token = this.jwtService.sign(payload);
+    const refresh_token = this.jwtService.sign(payload, {expiresIn : '7d'});
+    user.refreshToken = refresh_token
+    await user.save();
 
     const userResponse = {
       id: user._id,
       email: user.email,
       telegramId: user.telegramId,
       username: user.username,
+      refreshToken: refresh_token,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
@@ -202,19 +200,34 @@ export class AuthService {
     };
   }
 
-  async refreshToken(userId: string): Promise<{ token: string }> {
-    const user = await this.userModel.findById(userId).exec();
-    if (!user) {
-      throw new NotFoundException('User not found');
+   async refreshToken(refreshToken: string): Promise<{ access_token: string; refresh_token: string }> {
+    try {
+      const payload = this.jwtService.verify(refreshToken);
+
+      const user = await this.userModel.findById(payload.sub).exec();
+      if (!user || user.refreshToken !== refreshToken ) {
+       throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const newPayload = { 
+        sub: payload.sub, 
+        email: payload.email, 
+        telegramId: payload.telegramId 
+      };
+      
+      const newAccessToken = this.jwtService.sign(newPayload);
+      const newRefreshToken = this.jwtService.sign(newPayload, { expiresIn: '7d' });
+      
+      user.refreshToken = newRefreshToken;
+      await user.save();
+      
+      return {
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken,
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
-    
-    const payload = { sub: user._id, email: user.email, telegramId: user.telegramId };
-    const token = this.jwtService.sign(payload);
-    
-    return { token };
   }
-
- 
-
- 
 }
+

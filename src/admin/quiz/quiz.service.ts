@@ -1,3 +1,5 @@
+
+
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -12,357 +14,294 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateTierDto } from './dto/update-tier.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { UpdateTranslationDto } from './dto/update-translation.dto';
-import { TranslationImportDto } from './dto/translation-import.dto'
+import { TranslationImportDto } from './dto/translation-import.dto';
 
 @Injectable()
 export class QuizService {
   constructor(
-    @InjectModel(Category.name) private categoryModel: Model<Category>,
-    @InjectModel(Tier.name) private tierModel: Model<Tier>,
-    @InjectModel(Question.name) private questionModel: Model<Question>,
-    @InjectModel(Translation.name) private translationModel: Model<Translation>,
-    @InjectModel(UserPayment.name) private userPaymentModel: Model<UserPayment>,
+    @InjectModel(Category.name) private readonly categoryModel: Model<Category>,
+    @InjectModel(Tier.name) private readonly tierModel: Model<Tier>,
+    @InjectModel(Question.name) private readonly questionModel: Model<Question>,
+    @InjectModel(Translation.name) private readonly translationModel: Model<Translation>,
+    @InjectModel(UserPayment.name) private readonly userPaymentModel: Model<UserPayment>,
   ) {}
 
-  async createCategory(createCategoryDto: CreateCategoryDto) {
-    const existingCategory = await this.categoryModel.findOne({
-      name: createCategoryDto.name,
-    });
 
-    if (existingCategory) {
-      throw new BadRequestException(
-        `Category with name "${createCategoryDto.name}" already exists`,
-      );
+
+  async createCategory(dto: CreateCategoryDto) {
+    try {
+      return await this.categoryModel.create(dto);         
+    } catch (err: any) {
+      if (err?.code === 11000) {
+        throw new BadRequestException('name or orderRank already exists');
+      }
+      throw err;
     }
-
-    const categoryWithSameRank = await this.categoryModel.findOne({
-      orderRank: createCategoryDto.orderRank,
-    });
-
-    if (categoryWithSameRank) {
-      throw new BadRequestException(
-        `Category with orderRank "${createCategoryDto.orderRank}" already exists`,
-      );
-    }
-
-    const category = new this.categoryModel(createCategoryDto);
-    return await category.save();
   }
 
   async getCategories() {
-    return await this.categoryModel.find().sort({ orderRank: 1 });
+    return this.categoryModel.find().sort({ orderRank: 1 }).lean();
   }
 
   async getCategoryByRank(orderRank: number) {
-    const category = await this.categoryModel.findOne({ orderRank }).populate('questions');
-    
-    if (!category) {
-      throw new NotFoundException(`Category with orderRank ${orderRank} not found`);
-    }
+    const category = await this.categoryModel
+      .findOne({ orderRank })
+      .populate('questions')
+      .lean();
 
+    if (!category) throw new NotFoundException('Category not found');
     return category;
   }
 
-  async updateCategory(orderRank: number, updateCategoryDto: UpdateCategoryDto) {
-    const category = await this.categoryModel.findOne({ orderRank });
-
-    if (!category) {
-      throw new NotFoundException(`Category with orderRank ${orderRank} not found`);
-    }
-
-    if (updateCategoryDto.orderRank && updateCategoryDto.orderRank !== orderRank) {
-      const categoryWithSameRank = await this.categoryModel.findOne({
-        orderRank: updateCategoryDto.orderRank,
-      });
-
-      if (categoryWithSameRank) {
-        throw new BadRequestException(
-          `Category with orderRank "${updateCategoryDto.orderRank}" already exists`,
-        );
+  async updateCategory(orderRank: number, dto: UpdateCategoryDto) {
+    try {
+      const updated = await this.categoryModel.findOneAndUpdate(
+        { orderRank },
+        { $set: dto },
+        { new: true },
+      );
+      if (!updated) throw new NotFoundException('Category not found');
+      return updated;
+    } catch (err: any) {
+      if (err?.code === 11000) {
+        throw new BadRequestException('orderRank or name already exists');
       }
+      throw err;
     }
-
-    Object.assign(category, updateCategoryDto);
-    return await category.save();
   }
 
-  // Tier Methods
+  /* ------------------------------------------------------------------
+     TIERS
+  ------------------------------------------------------------------ */
+
   async getTiers() {
-    return await this.tierModel.find().sort({ orderRank: 1 });
+    return this.tierModel.find().sort({ orderRank: 1 }).lean();
   }
 
   async getTierByRank(orderRank: number) {
-    const tier = await this.tierModel.findOne({ orderRank }).populate('questions');
-
-    if (!tier) {
-      throw new NotFoundException(`Tier with orderRank ${orderRank} not found`);
-    }
-
+    const tier = await this.tierModel
+      .findOne({ orderRank })
+      .populate('questions')
+      .lean();
+    if (!tier) throw new NotFoundException('Tier not found');
     return tier;
   }
 
-  async createTier(createTierDto: UpdateTierDto) {
-    const tier = new this.tierModel(createTierDto);
-    return await tier.save();
+  async createTier(dto: UpdateTierDto) {
+    try {
+      return await this.tierModel.create(dto);
+    } catch (err: any) {
+      if (err?.code === 11000) throw new BadRequestException('orderRank already exists');
+      throw err;
+    }
   }
 
-  async updateTier(orderRank: number, updateTierDto: UpdateTierDto) {
-    const tier = await this.tierModel.findOne({ orderRank });
-
-    if (!tier) {
-      throw new NotFoundException(`Tier with orderRank ${orderRank} not found`);
-    }
-
-    Object.assign(tier, updateTierDto);
-    return await tier.save();
-  }
-
-  async createQuestions(createQuestionsDto: CreateQuestionsDto) {
-    const category = await this.categoryModel.findOne({ orderRank: createQuestionsDto.category });
-
-    if (!category) {
-      throw new NotFoundException(`Category with orderRank ${createQuestionsDto.category} not found`);
-    }
-
-    let tier = await this.tierModel.findOne({ orderRank: createQuestionsDto.tier.id });
-
-    if (!tier) {
-      tier = new this.tierModel({
-        name: createQuestionsDto.tier.name,
-        description: createQuestionsDto.tier.description,
-        isPaid: createQuestionsDto.tier.isPaid,
-        orderRank: createQuestionsDto.tier.id,
-      });
-      tier = await tier.save();
-    }
-
-    const savedQuestions = [];
-    for (const questionItem of createQuestionsDto.questions) {
-      const savedQuestion = await this.createSingleQuestion(
-        questionItem,
-        category._id,
-        tier._id as Types.ObjectId,
+  async updateTier(orderRank: number, dto: UpdateTierDto) {
+    try {
+      const tier = await this.tierModel.findOneAndUpdate(
+        { orderRank },
+        { $set: dto },
+        { new: true },
       );
-      savedQuestions.push(savedQuestion);
+      if (!tier) throw new NotFoundException('Tier not found');
+      return tier;
+    } catch (err: any) {
+      if (err?.code === 11000) throw new BadRequestException('orderRank already exists');
+      throw err;
     }
-
-    return {
-      message: `Successfully created ${savedQuestions.length} questions`,
-      category: category.name,
-      tier: tier.name,
-      questions: savedQuestions,
-    };
   }
 
-  private async createSingleQuestion(
-    questionItem: QuestionItemDto,
-    categoryId: Types.ObjectId,
-    tierId: Types.ObjectId,
-  ) {
-    if (!questionItem.options || questionItem.options.length !== 4) {
-      throw new BadRequestException('Four options are required for a question');
+
+  async createQuestions(dto: CreateQuestionsDto) {
+    const category = await this.categoryModel.findOne({ orderRank: dto.categoryOrderRank }).lean();
+    if (!category) throw new NotFoundException('Category not found');
+    console.log("Category found")
+    const session = await this.questionModel.db.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const tier = await this.tierModel.findOneAndUpdate(
+          { orderRank: dto.tier.orderRank },
+          {
+            $setOnInsert: {
+              name: dto.tier.name,
+              description: dto.tier.description,
+              isPaid: dto.tier.isPaid,
+            },
+          },
+          { upsert: true, new: true, session },
+        );
+
+        const questionDocs = dto.questions.map((q) => ({
+                rank: q.rank,                     
+                question_text: q.question,
+                options: q.options,
+                correct_option_index: q.correct_index,
+                category: category._id,
+                tier: tier._id,
+                }));
+
+        const createdQuestions = await this.questionModel.insertMany(questionDocs, { session });
+
+        const translationDocs = dto.questions.flatMap((q, idx) =>
+          (q.translations ?? []).map((t) => ({
+            languageCode: t.languageCode,
+            question_text: t.question,
+            options: t.options,
+            question: createdQuestions[idx]._id,
+          })),
+        );
+        if (translationDocs.length) {
+          await this.translationModel.insertMany(translationDocs, { session });
+        }
+
+        return {
+          message: `Successfully created ${createdQuestions.length} questions`,
+          category: category.name,
+          tier: tier.name,
+          questions: createdQuestions,
+        };
+      });
+    } finally {
+      session.endSession();
     }
-
-    if (questionItem.correct_index >= questionItem.options.length) {
-      throw new BadRequestException('Correct index is out of bounds');
-    }
-
-    const question = new this.questionModel({
-      question_text: questionItem.question,
-      options: questionItem.options,
-      correct_option_index: questionItem.correct_index,
-      category: categoryId,
-      tier: tierId,
-    });
-
-    const savedQuestion = await question.save();
-
-    if (questionItem.translations && questionItem.translations.length > 0) {
-      for (const translationItem of questionItem.translations) {
-        const translation = new this.translationModel({
-          languageCode: translationItem.language,
-          question_text: translationItem.question,
-          options: translationItem.options,
-          question: savedQuestion._id,
-        });
-        await translation.save();
-      }
-    }
-
-    return savedQuestion;
   }
+
+  /* called only from createQuestions() */
+  private validateQuestionPayload(item: QuestionItemDto) {
+    if (!item.options || item.options.length !== 4) {
+      throw new BadRequestException('Exactly four options are required');
+    }
+    if (item.correct_index >= item.options.length) {
+      throw new BadRequestException('correct_index is out of bounds');
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     READ QUESTIONS BY CATEGORY & TIER
+  ------------------------------------------------------------------ */
 
   async getQuestionsByCategoryAndTier(categoryRank: number, tierRank: number) {
-    const category = await this.categoryModel.findOne({ orderRank: categoryRank });
+    const [category, tier] = await Promise.all([
+      this.categoryModel.findOne({ orderRank: categoryRank }).lean(),
+      this.tierModel.findOne({ orderRank: tierRank }).lean(),
+    ]);
+    if (!category) throw new NotFoundException('Category not found');
+    if (!tier) throw new NotFoundException('Tier not found');
 
-    if (!category) {
-      throw new NotFoundException(`Category with orderRank ${categoryRank} not found`);
-    }
-
-    const tier = await this.tierModel.findOne({ orderRank: tierRank });
-
-    if (!tier) {
-      throw new NotFoundException(`Tier with orderRank ${tierRank} not found`);
-    }
-
-    const questions = await this.questionModel.find({ category, tier }).populate('translations');
+    const questions = await this.questionModel
+      .find({ category: category._id, tier: tier._id })
+      .populate('translations')
+      .lean();
 
     return { category, tier, questions };
   }
 
-  async updateQuestion(questionId: Types.ObjectId, updateQuestionDto: UpdateQuestionDto) {
-    const question = await this.questionModel.findById(questionId);
+  /* ------------------------------------------------------------------
+     SINGLE QUESTION UPDATE
+  ------------------------------------------------------------------ */
 
-    if (!question) {
-      throw new NotFoundException(`Question with ID ${questionId} not found`);
+  async updateQuestion(id: Types.ObjectId, dto: UpdateQuestionDto) {
+    const question = await this.questionModel.findById(id);
+    if (!question) throw new NotFoundException('Question not found');
+
+    /* validate correct_index against incoming or existing options */
+    const newOptions = dto.options ?? question.options;
+    if (
+      dto.correct_option_index !== undefined &&
+      dto.correct_option_index >= newOptions.length
+    ) {
+      throw new BadRequestException('correct_option_index is out of bounds');
     }
 
-    if (updateQuestionDto.options && updateQuestionDto.options.length !== 4) {
-      throw new BadRequestException('Four options are required for a question');
-    }
-
-    if (updateQuestionDto.correct_option_index !== undefined && updateQuestionDto.correct_option_index >= updateQuestionDto.options.length) {
-      throw new BadRequestException('Correct index is out of bounds');
-    }
-
-    Object.assign(question, updateQuestionDto);
-    return await question.save();
+    Object.assign(question, dto);
+    return question.save();
   }
 
-  async getTranslationsByQuestionId(questionId: Types.ObjectId) {
-    const question = await this.questionModel.findById(questionId);
+  /* ------------------------------------------------------------------
+     TRANSLATIONS
+  ------------------------------------------------------------------ */
 
-    if (!question) {
-      throw new NotFoundException(`Question with ID ${questionId} not found`);
-    }
+  async getTranslationsByQuestionId(id: Types.ObjectId) {
+    const question = await this.questionModel.findById(id).lean();
+    if (!question) throw new NotFoundException('Question not found');
 
-    const translations = await this.translationModel.find({ question: questionId });
+    const translations = await this.translationModel.find({ question: id }).lean();
     return { question, translations };
   }
 
-  async updateTranslation(translationId: Types.ObjectId, updateTranslationDto: UpdateTranslationDto) {
-    const translation = await this.translationModel.findById(translationId);
-
-    if (!translation) {
-      throw new NotFoundException(`Translation with ID ${translationId} not found`);
-    }
-
-    Object.assign(translation, updateTranslationDto);
-    return await translation.save();
+  async updateTranslation(id: Types.ObjectId, dto: UpdateTranslationDto) {
+    const translation = await this.translationModel.findByIdAndUpdate(
+      id,
+      { $set: dto },
+      { new: true },
+    );
+    if (!translation) throw new NotFoundException('Translation not found');
+    return translation;
   }
 
-  async createUserPayment(userPaymentDto: any) {
-    const userPayment = new this.userPaymentModel(userPaymentDto);
-    return await userPayment.save();
+  /* ------------------------------------------------------------------
+     BULK IMPORT TRANSLATIONS
+  ------------------------------------------------------------------ */
+
+  async importTranslations({ languageCode, translations }: TranslationImportDto) {
+    if (!languageCode || !translations) {
+      throw new BadRequestException('languageCode and translations are required');
+    }
+
+    const payload = Array.isArray(translations) ? translations : JSON.parse(translations);
+    const result = { processed: 0, created: 0, updated: 0, skipped: 0, errors: [] as string[] };
+
+    for (const block of payload) {
+      const [category, tier] = await Promise.all([
+        this.categoryModel.findOne({ orderRank: block.category }).lean(),
+        this.tierModel.findOne({ orderRank: block.tier }).lean(),
+      ]);
+      if (!category || !tier) {
+        result.errors.push(`Category ${block.category} / Tier ${block.tier} not found`);
+        result.skipped++;
+        continue;
+      }
+
+      const questionMap = new Map<number, Types.ObjectId>();
+      const questions = await this.questionModel
+        .find({ category: category._id, tier: tier._id })
+        .lean();
+      questions.forEach((q: any) => questionMap.set(q.orderRank ?? q.rank, q._id));
+
+      for (const q of block.questions ?? []) {
+        result.processed++;
+
+        const qId = questionMap.get(q.questionId);
+        if (!qId) {
+          result.skipped++;
+          result.errors.push(`Question ${q.questionId} not found`);
+          continue;
+        }
+
+        const op = await this.translationModel.updateOne(
+          { question: qId, languageCode },
+          {
+            $set: { question_text: q.questionText, options: q.options },
+          },
+          { upsert: true },
+        );
+        result.updated += op.modifiedCount;
+        result.created += (op.upsertedCount as number) ?? 0;
+      }
+    }
+
+    return { message: 'Translation import completed', result };
+  }
+
+  /* ------------------------------------------------------------------
+     USER PAYMENTS
+  ------------------------------------------------------------------ */
+
+  async createUserPayment(dto: any) {
+    return this.userPaymentModel.create(dto);
   }
 
   async getUserPayments() {
-    return await this.userPaymentModel.find();
+    return this.userPaymentModel.find().lean();
   }
-
-async importTranslations(translationImportDto: TranslationImportDto) {
-  const { languageCode, translations } = translationImportDto;
-  
-  if (!languageCode || !translations) {
-    throw new BadRequestException('Language code and translations are required');
-  }
-
-  const results = {
-    processed: 0,
-    created: 0,
-    updated: 0,
-    skipped: 0,
-    errors: [],
-  };
-
-  try {
-    const translationData = Array.isArray(translations) ? translations : JSON.parse(translations);
-    
-    for (const data of translationData) {
-      if (data.category === undefined || data.tier === undefined) {
-        results.errors.push('Missing category or tier rank in translation data');
-        continue;
-      }
-
-      const category = await this.categoryModel.findOne({ rank: data.category });
-      if (!category) {
-        results.errors.push(`Category with rank ${data.category} not found`);
-        continue;
-      }
-
-      const tier = await this.tierModel.findOne({ rank: data.tier });
-      if (!tier) {
-        results.errors.push(`Tier with rank ${data.tier} not found`);
-        continue;
-      }
-
-      if (!Array.isArray(data.questions) || data.questions.length === 0) {
-        results.errors.push(`No valid questions provided for category ${data.category}, tier ${data.tier}`);
-        continue;
-      }
-
-      const questions = await this.questionModel.find({ 
-        category: category._id, 
-        tier: tier._id 
-      }).sort({ rank: 1 }); 
-
-      if (questions.length === 0) {
-        results.errors.push(`No questions found for category ${data.category}, tier ${data.tier}`);
-        continue;
-      }
-
-      for (const questionData of data.questions) {
-        results.processed++;
-        
-        if (!questionData.questionId) {
-          results.errors.push(`Missing questionId for category ${data.category}, tier ${data.tier}`);
-          results.skipped++;
-          continue;
-        }
-
-        if (!questionData.questionText || !Array.isArray(questionData.options)) {
-          results.errors.push(`Invalid question data for questionId ${questionData.questionId}`);
-          results.skipped++;
-          continue;
-        }
-
-        const question = questions.find(q => q.rank === questionData.questionId);
-        
-        if (!question) {
-          results.errors.push(`Question with id ${questionData.questionId} not found in category ${data.category}, tier ${data.tier}`);
-          results.skipped++;
-          continue;
-        }
-
-        const existingTranslation = await this.translationModel.findOne({
-          question: question._id,
-          languageCode,
-        });
-
-        if (existingTranslation) {
-          existingTranslation.question_text = questionData.questionText;
-          existingTranslation.options = questionData.options;
-          await existingTranslation.save();
-          results.updated++;
-        } else {
-          const translation = new this.translationModel({
-            languageCode,
-            question_text: questionData.questionText,
-            options: questionData.options,
-            question: question._id,
-          });
-          await translation.save();
-          results.created++;
-        }
-      }
-    }
-
-    return {
-      message: 'Translation import completed',
-      results,
-    };
-  } catch (error) {
-    throw new BadRequestException(`Error importing translations: ${error.message}`);
-  }
-}
 }

@@ -58,6 +58,9 @@ export class User {
   @Prop({default: Date.now})
   updatedAt: Date;
 
+  @Prop()
+  refreshToken?: string;
+
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'UserPayment' }] })
   payments: MongooseSchema.Types.ObjectId[];
 }
