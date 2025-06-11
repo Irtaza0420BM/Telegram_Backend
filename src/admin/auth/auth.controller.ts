@@ -2,10 +2,11 @@ import { Controller, Post, Body, UseGuards, Get, Request } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto'
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { EnableTfaDto } from './dto/enable-tfa.dto';
 import { VerifyTfaDto } from './dto/verify-tfa.dto';
+import { LoginWithTfaDto } from './dto/login-with-tfa.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @ApiTags('Admin Authentication')
@@ -15,40 +16,74 @@ export class AuthController {
 
   @ApiOperation({ 
     summary: 'Admin login',
-    description: 'Authenticates an admin user and returns access and refresh tokens'
+    description: 'Authenticates an admin user and returns access and refresh tokens or 2FA requirement'
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'Login successful',
+    description: 'Login successful or 2FA required',
+    schema: {
+      oneOf: [
+        {
+          type: 'object',
+          properties: {
+            access_token: { type: 'string' },
+            refresh_token: { type: 'string' },
+            user: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                email: { type: 'string' },
+                username: { type: 'string' },
+                twoFAEnabled: { type: 'boolean' }
+              }
+            }
+          }
+        },
+        {
+          type: 'object',
+          properties: {
+            requiresTfa: { type: 'boolean' },
+            tempUserId: { type: 'string' },
+            message: { type: 'string' }
+          }
+        }
+      ]
+    }
+  })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+
+  @ApiOperation({ 
+    summary: 'Admin login with 2FA',
+    description: 'Completes login process with 2FA verification'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Login successful with 2FA',
     schema: {
       type: 'object',
       properties: {
-        accessToken: {
-          type: 'string',
-          example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
-        },
-        refreshToken: {
-          type: 'string',
-          example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
-        },
+        access_token: { type: 'string' },
+        refresh_token: { type: 'string' },
         user: {
           type: 'object',
           properties: {
             id: { type: 'string' },
             email: { type: 'string' },
-            username: { type: 'string' }
+            username: { type: 'string' },
+            twoFAEnabled: { type: 'boolean' }
           }
         }
       }
     }
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Invalid credentials' 
-  })
-  @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  @ApiResponse({ status: 401, description: 'Invalid credentials or 2FA code' })
+  @Post('login-with-tfa')
+  loginWithTfa(@Body() dto: LoginWithTfaDto) {
+    return this.authService.loginWithTfa(dto.email, dto.password, dto.tfaCode);
   }
 
   @ApiOperation({ 
@@ -64,14 +99,11 @@ export class AuthController {
         id: { type: 'string' },
         email: { type: 'string' },
         username: { type: 'string' },
-        created: { type: 'string', format: 'date-time' }
+        message: { type: 'string' }
       }
     }
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Invalid input or user already exists' 
-  })
+  @ApiResponse({ status: 400, description: 'Invalid input or user already exists' })
   @Post('create')
   create(@Body() dto: CreateUserDto) {
     return this.authService.create(dto);
@@ -92,10 +124,7 @@ export class AuthController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized' 
-  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Post('enable-tfa')
@@ -113,15 +142,12 @@ export class AuthController {
     schema: {
       type: 'object',
       properties: {
-        success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'Two-factor authentication enabled successfully' }
+        success: { type: 'boolean' },
+        message: { type: 'string' }
       }
     }
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized or invalid TFA code' 
-  })
+  @ApiResponse({ status: 401, description: 'Unauthorized or invalid TFA code' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Post('verify-tfa')
@@ -139,14 +165,12 @@ export class AuthController {
     schema: {
       type: 'object',
       properties: {
-        accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' }
+        accessToken: { type: 'string' },
+        refreshToken: { type: 'string' }
       }
     }
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Invalid or expired refresh token' 
-  })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   @Post('refresh')
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
@@ -170,20 +194,11 @@ export class AuthController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized' 
-  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('profile')
   getProfile(@Request() req) {
-    return {
-      id: req.user._id,
-      username: req.user.username,
-      email: req.user.email,
-      twoFAEnabled: req.user.twoFASecurity,
-      lastLogin: req.user.lastLogin
-    };
+    return this.authService.getProfile(req.user.sub);
   }
 }

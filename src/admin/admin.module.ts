@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { Admin, AdminSchema } from './admin.entity';
-// import { User, UserSchema } from 'src/auth/entites/user.entity';
-
+import { DashboardModule } from './dashboard/dashboard.module';
+import {AdminAuthModule} from './auth/auth.module'
+import { QuizModule } from './quiz/quiz.module';
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Admin.name, schema: AdminSchema },
-      // { name: User.name, schema: UserSchema }
-    ]),
+    DashboardModule,
+    AdminAuthModule,
+    QuizModule,
   ],
-  exports: [MongooseModule], 
+  exports: [
+    DashboardModule,
+    AdminAuthModule,
+    QuizModule,
+  ]
 })
-export class AdminModule {}
+export class AdminModule {} 

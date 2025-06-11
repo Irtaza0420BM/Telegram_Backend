@@ -21,12 +21,10 @@ export class OtpDto {
 
   @ApiProperty({
     example: '123456789',
-    description: 'Optional Telegram ID for the user',
-    required: false
+    description: 'Telegram ID for the user'
   })
   @IsString()
-  @IsOptional()
-  telegramId?: string;
+  telegramId: string;
 
   @ApiProperty({
     example: 'johndoe',

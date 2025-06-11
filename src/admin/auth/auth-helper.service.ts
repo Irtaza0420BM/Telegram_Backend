@@ -1,31 +1,30 @@
-import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { authenticator } from 'otplib';
 import * as qrcode from 'qrcode';
-import { Admin } from '../admin.entity';
+import { Admin } from '../../schemas/admin.schema';
 import { CreateUserDto } from './dto/create-user.dto';
-import { User, UserDocument } from 'src/auth/entites/user.entity';
+import { User } from '../../schemas/user.schema';
 
 @Injectable()
-
 export class AuthHelperService {
   constructor(
     @InjectModel(Admin.name) private readonly adminModel: Model<Admin>,
-    @InjectModel(User.name) private readonly userModel: Model <User>,
+    @InjectModel(User.name) private readonly userModel: Model<User>,
   ) {}
 
   async findByEmail(email: string): Promise<Admin | null> {
     return this.adminModel.findOne({ email }).exec();
   }
 
-  async findByUsername(username: string): Promise<Admin | null> {
-    return this.adminModel.findOne({ username }).exec();
-  }
-  
   async findById(id: string): Promise<Admin | null> {
     return this.adminModel.findById(id).exec();
+  }
+
+  async findUserById(id: string): Promise<User | null> {
+    return this.userModel.findById(id).exec();
   }
 
   async validateAdmin(email: string, password: string): Promise<Admin | null> {
@@ -43,15 +42,6 @@ export class AuthHelperService {
     await admin.save();
     
     return admin;
-  }
-
-  async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.validateAdmin(email, password);
-    if (user) {
-      const { password, ...result } = user.toObject();
-      return result;
-    }
-    return null;
   }
 
   async createAdmin(createUserDto: CreateUserDto): Promise<Admin> {
@@ -77,95 +67,27 @@ export class AuthHelperService {
     return newAdmin.save();
   }
 
-  async setupTwoFactorAuth(userId: string) {
-    const secretData = await this.generateTwoFASecret(userId);
-    
-    const admin = await this.adminModel.findById(userId).exec();
-    if (!admin) {
-      throw new NotFoundException('Admin not found');
-    }
-    
-    admin.twoFASecret = secretData.secret;
-    await admin.save();
-    
-    return {
-      secret: secretData.secret,
-      otpAuthUrl: secretData.otpAuthUrl,
-      qrCodeDataURL: secretData.qrCodeDataURL,
-    };
-  }
-
-  async verifyAndEnableTwoFactorAuth(userId: string, token: string): Promise<boolean> {
-    const isValid = await this.verify2FAToken(userId, token);
-    
-    if (isValid) {
-      const admin = await this.findById(userId);
-      await this.enable2FA(userId, admin.twoFASecret);
-    }
-    
-    return isValid;
-  }
-
-  async generateTwoFASecret(adminId: string): Promise<{ secret: string, otpAuthUrl: string, qrCodeDataURL: string }> {
-    const admin = await this.adminModel.findById(adminId).exec();
-    if (!admin) {
-      throw new NotFoundException('Admin not found');
-    }
-    
+  generate2FASecret(admin: Admin) {
     const secret = authenticator.generateSecret();
-    const otpAuthUrl = authenticator.keyuri(admin.email, 'AdminDashboard', secret);
-    
-    const qrCodeDataURL = await qrcode.toDataURL(otpAuthUrl);
-    
+    const otpauthUrl = authenticator.keyuri(admin.email, 'Your App Name', secret);
+
     return {
       secret,
-      otpAuthUrl,
-      qrCodeDataURL,
+      otpauthUrl
     };
   }
 
-  async enable2FA(adminId: string, secret: string): Promise<Admin> {
-    const admin = await this.adminModel.findById(adminId).exec();
-    if (!admin) {
-      throw new NotFoundException('Admin not found');
-    }
-    
-    admin.twoFASecurity = true;
-    admin.twoFASecret = secret;
-    return admin.save();
+  async generateQRCode(otpauthUrl: string) {
+    return qrcode.toDataURL(otpauthUrl);
   }
 
-  async verify2FAToken(adminId: string, token: string): Promise<boolean> {
-    const admin = await this.adminModel.findById(adminId).exec();
-    if (!admin || !admin.twoFASecret) {
-      throw new NotFoundException('Admin not found or 2FA not enabled');
-    }
-    
-    const isValid = authenticator.verify({
+  verifyOTP(token: string, secret: string) {
+    return authenticator.verify({
       token,
-      secret: admin.twoFASecret,
+      secret,
     });
-    
-    if (isValid) {
-      admin.twoFAVerified = true;
-      await admin.save();
-    }
-    
-    return isValid;
   }
 
-  async disable2FA(adminId: string): Promise<Admin> {
-    const admin = await this.adminModel.findById(adminId).exec();
-    if (!admin) {
-      throw new NotFoundException('Admin not found');
-    }
-    
-    admin.twoFASecurity = false;
-    admin.twoFASecret = null;
-    admin.twoFAVerified = false;
-    return admin.save();
-  }
-  
   async storeRefreshToken(adminId: string, refreshToken: string): Promise<void> {
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
     await this.adminModel.findByIdAndUpdate(adminId, {
@@ -181,15 +103,44 @@ export class AuthHelperService {
     
     return bcrypt.compare(refreshToken, admin.refreshToken);
   }
-  
-  async removeRefreshToken(adminId: string): Promise<void> {
-    await this.adminModel.findByIdAndUpdate(adminId, {
-      refreshToken: null,
-    }).exec();
+
+  async validateUser(email: string, password: string): Promise<Admin> {
+    const admin = await this.validateAdmin(email, password);
+    if (!admin) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    return admin;
   }
 
+  async setupTwoFactorAuth(userId: string): Promise<{ secret: string; qrCode: string }> {
+    const admin = await this.findById(userId);
+    if (!admin) {
+      throw new NotFoundException('Admin not found');
+    }
 
-  async findUserById(id: string): Promise<User | null> {
-    return this.userModel.findById(id).exec();
+    const { secret, otpauthUrl } = this.generate2FASecret(admin);
+    const qrCode = await this.generateQRCode(otpauthUrl);
+
+    // Save the secret
+    admin.twoFASecret = secret;
+    admin.twoFASecurity = true;
+    await admin.save();
+
+    return { secret, qrCode };
+  }
+
+  async verifyAndEnableTwoFactorAuth(userId: string, tfaCode: string): Promise<boolean> {
+    const admin = await this.findById(userId);
+    if (!admin || !admin.twoFASecret) {
+      throw new NotFoundException('Admin not found or 2FA not set up');
+    }
+
+    const isValid = this.verifyOTP(tfaCode, admin.twoFASecret);
+    if (isValid) {
+      admin.twoFAVerified = true;
+      await admin.save();
+    }
+
+    return isValid;
   }
 }

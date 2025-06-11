@@ -2,9 +2,9 @@ import { Controller, Post, Body, Get, Param, UseGuards, Patch, Req, HttpStatus, 
 import { AuthService } from './auth.service';
 import { EmailDto } from './dto/email.dto';
 import { OtpDto } from './dto/otp.dto';
-import { JwtAuthGuard } from 'src/admin/auth/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update_user.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from './strategies/jwt-auth.guard';
 import { RefreshTokenDto } from './dto/refreshtoken.dto';
 
 @ApiTags('User Authentication')
@@ -35,10 +35,6 @@ export class AuthController {
     return await this.authService.getDetailsByTelegramId(telegramId);
   }
 
-
-
-
-
   @ApiOperation({ 
     summary: 'Get user profile',
     description: 'Returns the profile information for the authenticated user'
@@ -56,11 +52,9 @@ export class AuthController {
   @Get('profile')
   getProfile(@Request() req) {
     return {
-      id: req.user._id,
+      id: req.user.userId,
       username: req.user.username,
-      email: req.user.email,
-      twoFAEnabled: req.user.twoFASecurity,
-      lastLogin: req.user.lastLogin
+      email: req.user.email
     };
   }
 
@@ -81,8 +75,6 @@ export class AuthController {
     return this.authService.sendOtp(emailDto);
   }
 
- 
-  
   @ApiOperation({ 
     summary: 'Verify OTP',
     description: 'Verifies the OTP sent to user email and completes the registration/authentication process'
@@ -97,11 +89,9 @@ export class AuthController {
   })
   @Post('verify-otp')
   async verifyOtp(@Body() otpDto: OtpDto) {
-    return this.authService.verifyOtp(otpDto);
+    return this.authService.verifyOTP(otpDto);
   }
 
- 
-  
   @ApiOperation({ 
     summary: 'Update user profile',
     description: 'Updates user information such as email, username, language preference, etc.'
@@ -125,7 +115,7 @@ export class AuthController {
     @Req() req,
     @Body() updateUserDto: UpdateUserDto
   ) {
-    return this.authService.updateUser(req.user.sub, updateUserDto);
+    return this.authService.updateUser(req.user.userId, updateUserDto);
   }
 
   @ApiOperation({ 
@@ -145,7 +135,4 @@ export class AuthController {
   async refreshToken(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto.refreshToken);
   }
-
-
- 
 }

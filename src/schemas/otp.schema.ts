@@ -11,8 +11,8 @@ export class Otp {
   @Prop({ required: true })
   otp: string;
 
-  @Prop({ required: true , index: { expireAfterSeconds: 0 } })
+  @Prop({ required: true, index: { expireAfterSeconds: 0 } })
   expiry: Date;
 }
 
-export const OtpSchema = SchemaFactory.createForClass(Otp);
+export const OtpSchema = SchemaFactory.createForClass(Otp); 
